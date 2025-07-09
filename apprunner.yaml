@@ -1,0 +1,19 @@
+version: 1.0
+runtime: python3
+build:
+  commands:
+    build:
+      - pip install -r requirements.txt
+run:
+  runtime-version: 3.9
+  command: uvicorn main:app --host 0.0.0.0 --port 8000
+  network:
+    port: 8000
+    env: PORT
+  env:
+    - name: API_KEY
+      value: "your-secure-api-key"
+    - name: ALLOWED_S3_BUCKET
+      value: "kizukai-ds-tmp"
+    - name: API_KEY_REQUIRED
+      value: "false"  # 開発環境ではAPI認証を無効化
