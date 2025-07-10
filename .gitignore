@@ -69,3 +69,11 @@ api_generated_report.json
 *.tmp
 *.bak
 *~
+
+# Debug files
+agents_sdk_debug.log
+test_output_agents_sdk_*.json
+report_generator_mock_debug.py
+
+# Old directory
+old/

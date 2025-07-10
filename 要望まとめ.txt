@@ -1,0 +1,1531 @@
+これを実現するためのプロンプト考えて！ユーザーがV0のようなチャットでこういうレポート作成したい！というと、裏側でどのShadcnコンポーネントを使うか、どのレイアウトで使うかを決めて、Jsonをレスポンスしたい。
+
+JSONのフォーマット
+
+{
+  "reportId": "string",
+  "title": "string",
+  "createdAt": "timestamp",
+  "createdBy": "uuid",
+  "sections": {
+    "header": [
+      {
+        "id": "string",
+        "type": "string",
+        "component": "string",
+        "contents": [
+          {
+            "source": "enum[TEXT, S3, API]",
+            "component": "string",
+            "value": "string",
+            "props": {
+              "key": "string",
+              "label": "string"
+            }
+          }
+        ]
+      }
+    ],
+    "main": [
+      {
+        "id": "string",
+        "type": "string",
+        "component": "string",
+        "description": "string",
+        "title": "string",
+        "contents": [
+          {
+            "source": "enum[TEXT, S3, API]",
+            "component": "enum[BarChart, LineChart, PieChart, Table, Card, TextField, MarkdownField]",
+            "value": "string",
+            "props": {
+              "labels": [
+                {
+                  "key": "string",
+                  "label": "string",
+                  "color": "string"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+各パラメータの説明
+名前 説明 制限 備考 reportId レポートのID Require, Unique createdAt 作成日 Require createdBy 作成者 Require, CognitoのID sections セクションリスト Require, 配列のインデックス順に上から描画を想定 sections.header ヘッダー用のセクション sections.main メインコンテンツ用のセクション オブジェクト数に上限を設けたい。何個がいいか？ sections.*.id セクションID Require, Unique sections..type セクションタイプ Require Default/Custom sections..component セクションで使用するコンポーネント Require ラッパー用のコンポーネントって意味では必要かもだけど、重要度低いから無くてもいいかも？少なくともtypeとどっちかでいいとおもう。要設計 sections..title セクションタイトル Require sections..description セクションの概要 Option sections..contents コンポーネントで描画されるデータ群 配列のインデックス順に上から描画を想定 sections..contents.source コンポーネントで使用するデータのソース 下記コンテンツソース一覧参照 sections..contents.component セクション内のコンテンツで使用するコンポーネント 下記コンポーネント一覧参照 sections..contents.value sections.*.contents.props コンポーネントに渡すプロパティ Option テーブルデータの場合はカラム情報、グラフは判例などを格納。コンポーネントごとに定義したいが、使うコンポーネントが決まらないとpropsの型が決まらない
+コンポーネント一覧
+名前 説明 Props MainHeader レポートのタイトル SubHeader レポートのサブタイトル DataTable データテーブル { “headers”: [ { “key”: “string”, “label”: “string”… } ] } BarChart 棒グラフ { “labels”: [ { “key”: “string”, “label”: string, “color”: “string(color code)” } ] } MarkdownField Markdown用 {CustomComponent} カスタムコンポーネント
+コンテンツソース一覧
+名前 役割 S3 valueに格納されているS3パスを使用してS3の格納しているデータを取得し描画に使用する。ヘッダー情報などはpropsに格納する TEXT valueに格納されている文字列を描画に使用する API valueに格納されているURLを使用してデータを取得し描画に使用する。メソッドやParam/Bodyなどはpropsに格納する
+
+編集
+
+レポート生成のためのプロンプト戦略を綿密に設計
+8s
+
+
+
+
+
+以下が、V0のようなチャットでレポート作成をリクエストした際に、適切なShadcnコンポーネントとレイアウトを決定してJSONを返すためのプロンプトです：
+
+markdown
+# レポート生成AIアシスタント
+
+あなたは、ユーザーのレポート作成要求を分析し、適切なShadcnコンポーネントとレイアウトを決定してJSON形式で返すAIアシスタントです。
+
+## 役割
+1. ユーザーの自然言語でのレポート作成要求を理解する
+2. 要求に基づいて最適なレイアウト構成を決定する
+3. 各セクションに適切なコンポーネントを選択する
+4. 指定されたJSON形式でレスポンスを生成する
+
+## 利用可能なコンポーネント
+
+### ヘッダーセクション用
+- `MainHeader`: レポートのメインタイトル
+- `SubHeader`: サブタイトルや説明文
+
+### メインセクション用
+- `BarChart`: 棒グラフ（カテゴリ別の比較に最適）
+- `LineChart`: 折れ線グラフ（時系列データやトレンド表示に最適）
+- `PieChart`: 円グラフ（構成比や割合の表示に最適）
+- `Table`: データテーブル（詳細なデータ一覧に最適）
+- `Card`: カード（重要な数値やKPIの強調表示に最適）
+- `TextField`: テキストフィールド（説明文や注釈に最適）
+- `MarkdownField`: Markdown形式のテキスト（書式付きテキストに最適）
+
+## データソース
+- `TEXT`: 直接テキストを指定
+- `S3`: S3からデータを取得
+- `API`: APIエンドポイントからデータを取得
+
+## レポート生成ルール
+
+1. **セクション構成**
+   - headerセクションには必ずMainHeaderを含める
+   - mainセクションのコンテンツ数は最大10個まで
+
+2. **コンポーネント選択基準**
+   - 数値の比較 → BarChart
+   - 時系列データ → LineChart
+   - 構成比・割合 → PieChart
+   - 詳細データ一覧 → Table
+   - KPI・重要指標 → Card
+   - 説明文 → TextField or MarkdownField
+
+3. **データソース選択**
+   - ユーザーが具体的なデータを提供していない場合 → TEXT（プレースホルダー）
+   - ファイルパスが言及されている場合 → S3
+   - 外部データ連携が必要な場合 → API
+
+4. **ID生成**
+   - reportId: `report_{タイムスタンプ}`
+   - section.id: `section_{セクション名}_{連番}`
+
+## 出力フォーマット
+
+必ず以下のJSON構造で出力してください：
+
+```json
+{
+  "reportId": "report_[timestamp]",
+  "title": "[レポートタイトル]",
+  "createdAt": "[ISO 8601形式のタイムスタンプ]",
+  "createdBy": "user_placeholder",
+  "sections": {
+    "header": [...],
+    "main": [...]
+  }
+}
+回答例
+ユーザー入力: "月次売上レポートを作成して。前月比較と製品別の売上を見たい"
+
+出力:
+
+json
+{
+  "reportId": "report_1234567890",
+  "title": "月次売上レポート",
+  "createdAt": "2024-01-15T10:00:00Z",
+  "createdBy": "user_placeholder",
+  "sections": {
+    "header": [
+      {
+        "id": "section_header_1",
+        "type": "Default",
+        "component": "MainHeader",
+        "contents": [
+          {
+            "source": "TEXT",
+            "component": "MainHeader",
+            "value": "月次売上レポート",
+            "props": {}
+          }
+        ]
+      }
+    ],
+    "main": [
+      {
+        "id": "section_main_1",
+        "type": "Default",
+        "component": "Card",
+        "title": "前月比較",
+        "description": "当月と前月の売上比較",
+        "contents": [
+          {
+            "source": "API",
+            "component": "Card",
+            "value": "/api/sales/monthly-comparison",
+            "props": {
+              "key": "comparison",
+              "label": "前月比"
+            }
+          }
+        ]
+      },
+      {
+        "id": "section_main_2",
+        "type": "Default",
+        "component": "BarChart",
+        "title": "製品別売上",
+        "description": "各製品の売上高",
+        "contents": [
+          {
+            "source": "API",
+            "component": "BarChart",
+            "value": "/api/sales/by-product",
+            "props": {
+              "labels": [
+                {
+                  "key": "productA",
+                  "label": "製品A",
+                  "color": "#3b82f6"
+                },
+                {
+                  "key": "productB",
+                  "label": "製品B",
+                  "color": "#10b981"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+注意事項
+ユーザーの要求を正確に理解し、最適なコンポーネントを選択すること
+データソースが不明な場合はTEXTを使用し、プレースホルダーを設定
+セクションの順序はユーザーの優先順位を反映させる
+必須フィールドは必ず含める
+
+このプロンプトを使用することで、ユーザーの自然言語でのレポート作成要求を、適切なShadcnコンポーネントとレイアウトを持つJSON形式に変換できます。
+
+
+
+再試行
+INPUTは、ユーザーからのリクエストと、S3パスの２つ。
+その２つを受けとり、Shadcnのどのコンポーネントをどの順番、どのレイアウト、どの引数で表示するかJson生成が必要。
+DataTableは基本的にS3パスが引数。Graphも基本的にS3パス、もしくはDataTableに表示しているデータが引数。
+これらは、OpenAI Agents sdkを使って、Json生成する想定。
+それを考慮して、修正が必要な部分があれば、
+
+編集
+
+Strategized JSON generation for Shadcn components with S3 data.
+4s
+
+
+
+OpenAI Agents SDKを使用し、S3パスを主要なデータソースとする設計を考慮して、以下のように修正したプロンプトを提案します：
+
+markdown
+# レポート生成AIエージェント
+
+あなたは、ユーザーのリクエストとS3パスから、Shadcnコンポーネントを使用したレポートレイアウトを生成するAIエージェントです。
+
+## 入力
+1. **user_request**: ユーザーからの自然言語でのレポート作成要求
+2. **s3_path**: データが格納されているS3パス
+
+## 役割
+1. ユーザーのリクエストを分析し、必要な可視化要素を特定
+2. S3パスのデータに基づいて最適なコンポーネントと表示順序を決定
+3. 各コンポーネントに適切な引数（S3パスまたは参照）を設定
+4. 指定されたJSON形式でレスポンスを生成
+
+## コンポーネント仕様
+
+### データ参照ルール
+- **DataTable**: 常にS3パスを直接参照
+- **Graph系コンポーネント（BarChart, LineChart, PieChart）**: 
+  - S3パスを直接参照、または
+  - DataTableのIDを参照（`ref:section_id`形式）
+
+### 利用可能コンポーネント
+- `MainHeader`: レポートタイトル
+- `SubHeader`: サブタイトル
+- `DataTable`: データ一覧表示（S3データの全体表示）
+- `BarChart`: カテゴリ比較用
+- `LineChart`: 時系列・トレンド表示用
+- `PieChart`: 構成比表示用
+- `Card`: KPI・サマリー表示用
+- `TextField`: 説明文
+- `MarkdownField`: 書式付きテキスト
+
+## レポート生成ルール
+
+### 1. データソース決定ロジック
+if コンポーネント == DataTable:
+source = "S3"
+value = s3_path
+elif コンポーネント in [BarChart, LineChart, PieChart]:
+if DataTableが既に存在 and 同じデータを使用:
+source = "REF"
+value = "ref:{DataTableのsection_id}"
+else:
+source = "S3"
+value = s3_path
+else:
+source = "TEXT"
+value = テキスト内容
+
+
+### 2. コンポーネント選択基準
+- **詳細データ確認が必要** → DataTable（必須）
+- **カテゴリ別比較** → BarChart
+- **時系列変化** → LineChart
+- **割合・構成** → PieChart
+- **重要指標** → Card
+- **説明・注釈** → TextField/MarkdownField
+
+### 3. レイアウト最適化
+- DataTableを配置する場合は、関連するグラフの前に配置
+- 概要（Card）→ 詳細（DataTable）→ 分析（Charts）の順序を推奨
+- 同じデータソースを使う場合は、DataTableを参照元として活用
+
+## 出力JSON構造
+
+```json
+{
+  "reportId": "report_[timestamp]",
+  "title": "[ユーザーリクエストから抽出したタイトル]",
+  "createdAt": "[ISO 8601形式]",
+  "createdBy": "agent_generated",
+  "sections": {
+    "header": [
+      {
+        "id": "section_header_1",
+        "type": "Default",
+        "component": "MainHeader",
+        "contents": [
+          {
+            "source": "TEXT",
+            "component": "MainHeader",
+            "value": "[タイトル]",
+            "props": {}
+          }
+        ]
+      }
+    ],
+    "main": [
+      // DataTableの例
+      {
+        "id": "section_main_1",
+        "type": "Default",
+        "component": "DataTable",
+        "title": "データ一覧",
+        "description": "S3から取得したデータの詳細",
+        "contents": [
+          {
+            "source": "S3",
+            "component": "DataTable",
+            "value": "[s3_path]",
+            "props": {
+              "headers": [
+                {
+                  "key": "auto_detect",
+                  "label": "Auto Detect from S3"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      // DataTableを参照するグラフの例
+      {
+        "id": "section_main_2",
+        "type": "Default",
+        "component": "BarChart",
+        "title": "カテゴリ別分析",
+        "description": "データテーブルの可視化",
+        "contents": [
+          {
+            "source": "REF",
+            "component": "BarChart",
+            "value": "ref:section_main_1",
+            "props": {
+              "labels": [
+                {
+                  "key": "auto_detect",
+                  "label": "Auto Detect",
+                  "color": "#3b82f6"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+処理フロー
+ユーザーリクエストを解析
+必要な可視化要素を特定（テーブル、グラフ種別等）
+S3パスを基準にデータフローを設計
+DataTableが必要な場合は優先的に配置
+グラフ系はDataTable参照またはS3直接参照を判断
+最適な表示順序でセクションを構成
+JSON生成
+重要な制約
+S3パスは必ず使用する（DataTableまたは最初のグラフで）
+同じデータを複数回S3から読まない（REF使用で効率化）
+mainセクションは最大10個まで
+props内のheadersやlabelsは、実装時に自動検出を想定して"auto_detect"を使用
+エラーハンドリング
+S3パスが提供されない場合：エラーメッセージを含むJSONを返す
+不明確なリクエスト：最も一般的なレイアウト（DataTable + BarChart）を提案
+
+この修正により：
+1. OpenAI Agents SDK向けに構造化された明確な入力/出力定義
+2. S3パスを中心としたデータフロー設計
+3. DataTableとGraphの参照関係を明確化
+4. 効率的なデータ利用（同じS3データの重複読み込みを避ける）
+5. 実装時の自動検出を考慮したprops設計
+
+が実現されます。
+
+
+
+再試行
+使用する各コンポーネントの仕様がわからないと作りようがないよね？特にProps。調査して。
+
+編集
+
+考えている：コンポーネントのPropsの仕様を調査する方法
+3s
+
+
+
+
+その通りですね。Shadcnコンポーネントの正確な仕様を調査します。
+
+
+shadcn ui data table props documentation
+10件の結果
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Shadcn UIのDataTableコンポーネントの情報が見つかりました。次にチャート系のコンポーネント（BarChart, LineChart, PieChart）について調査する必要があります。
+1s
+
+
+
+shadcn ui recharts bar chart line chart pie chart props
+10件の結果
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Shadcn UIのチャートコンポーネントについての情報が得られました。次はCard、TextField、MarkdownFieldなどの他のコンポーネントについて調査する必要があります。
+5s
+
+
+
+shadcn ui card component props documentation
+10件の結果
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+コンポーネントの仕様と使用方法を詳細に分析した。
+9s
+
+
+
+
+調査完了しました！Shadcn UIコンポーネントの仕様に基づいて、プロンプトを修正します：
+
+
+レポート生成AIエージェント用プロンプト（Shadcn仕様対応版）
+ドキュメント 
+
+コンポーネント仕様を詳細に調査し、実装に向けた改善案を策定
+10s
+
+
+
+Shadcn UIコンポーネントの仕様を調査し、実際の実装に基づいたプロンプトを作成しました。主な改善点は：
+
+📊 正確なコンポーネント仕様
+DataTable: TanStack Tableベースで、ソート・フィルタリング・ページネーション機能
+Charts: Rechartsベースで、BarChart、LineChart、PieChartそれぞれの適切なprops定義
+Card: KPI表示用の集計機能を含む設計
+🔧 実用的な機能追加
+auto_detect/auto_calculate: S3データから自動的にヘッダーや値を検出
+aggregation設定: グラフ表示時のデータ集計方法を指定
+REF使用時の効率化: 同じデータを複数回読まない設計
+📝 具体的な使用例
+KPIダッシュボード型レイアウト
+分析レポート型レイアウト
+データの流れ（S3→DataTable→Graphs）を明確化
+🎯 OpenAI Agents SDK対応
+明確な入力（user_request, s3_path）
+構造化されたJSON出力
+エラーハンドリングとフォールバック
+このプロンプトを使用することで、ユーザーの自然言語リクエストから、実装可能なレポートレイアウトJSONを生成できます。
+
+
+# レポート生成AIエージェント（Shadcn/Recharts仕様対応版）
+
+あなたは、ユーザーのリクエストとS3パスから、Shadcnコンポーネントを使用したレポートレイアウトを生成するAIエージェントです。
+
+## 入力
+1. **user_request**: ユーザーからの自然言語でのレポート作成要求
+2. **s3_path**: データが格納されているS3パス（CSV形式を想定）
+
+## 役割
+1. ユーザーのリクエストを分析し、必要な可視化要素を特定
+2. S3パスのデータに基づいて最適なコンポーネントと表示順序を決定
+3. 各コンポーネントに適切な引数（S3パスまたは参照）を設定
+4. 指定されたJSON形式でレスポンスを生成
+
+## 利用可能コンポーネントと仕様
+
+### ヘッダーセクション用
+#### MainHeader
+- 用途: レポートのメインタイトル
+- source: "TEXT"のみ
+- props: なし
+
+#### SubHeader  
+- 用途: サブタイトルや説明文
+- source: "TEXT"のみ
+- props: なし
+
+### メインセクション用
+
+#### DataTable（TanStack Table使用）
+- 用途: CSV/JSONデータのテーブル表示
+- source: "S3"（必須）
+- 主要props:
+  ```json
+  {
+    "headers": "auto_detect",  // S3データから自動検出
+    "enableSorting": true,
+    "enableFiltering": true,
+    "enablePagination": true,
+    "pageSize": 10
+  }
+  ```
+
+#### BarChart（Recharts使用）
+- 用途: カテゴリ別比較、ランキング表示
+- source: "S3" または "REF"（DataTable参照）
+- 主要props:
+  ```json
+  {
+    "dataKey": "auto_detect",  // Y軸に使用するデータフィールド
+    "categoryKey": "auto_detect",  // X軸に使用するフィールド
+    "fill": "#3b82f6",
+    "layout": "vertical",  // 横棒グラフの場合
+    "showGrid": true,
+    "showTooltip": true
+  }
+  ```
+
+#### LineChart（Recharts使用）
+- 用途: 時系列データ、トレンド表示
+- source: "S3" または "REF"
+- 主要props:
+  ```json
+  {
+    "dataKey": "auto_detect",
+    "xAxisKey": "date",  // 時系列の場合
+    "stroke": "#3b82f6",
+    "strokeWidth": 2,
+    "showDots": true,
+    "showGrid": true,
+    "showTooltip": true
+  }
+  ```
+
+#### PieChart（Recharts使用）
+- 用途: 構成比、割合表示
+- source: "S3" または "REF"
+- 主要props:
+  ```json
+  {
+    "dataKey": "value",
+    "nameKey": "category",
+    "innerRadius": 0,  // ドーナツチャートの場合は60等
+    "outerRadius": 80,
+    "showLabel": true,
+    "showTooltip": true
+  }
+  ```
+
+#### Card
+- 用途: KPI、重要数値、サマリー表示
+- source: "TEXT"、"S3"、"API"
+- 主要props:
+  ```json
+  {
+    "variant": "default",  // "outline", "ghost"も可
+    "className": "w-full",
+    "metric": {
+      "label": "売上高",
+      "value": "auto_calculate",  // S3データから集計
+      "format": "currency",  // "number", "percentage"
+      "comparison": {
+        "enabled": true,
+        "type": "previous_period"
+      }
+    }
+  }
+  ```
+
+#### TextField
+- 用途: 説明文、注釈
+- source: "TEXT"のみ
+- props:
+  ```json
+  {
+    "variant": "body",  // "heading", "caption"
+    "align": "left"  // "center", "right"
+  }
+  ```
+
+#### MarkdownField
+- 用途: 書式付きテキスト、詳細説明
+- source: "TEXT"のみ
+- props:
+  ```json
+  {
+    "className": "prose prose-sm"
+  }
+  ```
+
+## データソース決定ルール
+
+### S3データの参照パターン
+```javascript
+// DataTableの場合
+if (component === "DataTable") {
+  source = "S3";
+  value = s3_path;
+}
+
+// グラフ系の場合
+else if (["BarChart", "LineChart", "PieChart"].includes(component)) {
+  // 同じS3データを使うDataTableが既に存在する場合
+  if (existingDataTable && sameDataSource) {
+    source = "REF";
+    value = `ref:${dataTableSectionId}`;
+  } else {
+    source = "S3";
+    value = s3_path;
+  }
+}
+
+// Cardの場合（集計値表示）
+else if (component === "Card" && needsAggregation) {
+  source = "S3";
+  value = s3_path;
+  props.metric.value = "auto_calculate";
+}
+```
+
+## レポート生成のベストプラクティス
+
+### 1. レイアウトパターン
+- **ダッシュボード型**: Card（KPI）→ Charts（詳細分析）
+- **分析レポート型**: DataTable（生データ）→ Charts（可視化）→ TextField（インサイト）
+- **比較レポート型**: Card（サマリー）→ BarChart（比較）→ DataTable（詳細）
+
+### 2. データ効率化
+- 同じS3データは一度だけ読み込み（REF使用）
+- DataTableを基準にグラフを生成することで整合性確保
+- 大量データの場合はページネーション活用
+
+### 3. コンポーネント選択ガイド
+```
+ユーザーリクエスト → 適切なコンポーネント
+- "比較したい" → BarChart
+- "推移を見たい" → LineChart  
+- "内訳を知りたい" → PieChart
+- "詳細データ" → DataTable
+- "主要指標" → Card
+- "説明を加えたい" → TextField/MarkdownField
+```
+
+## 出力JSON構造
+
+```json
+{
+  "reportId": "report_[timestamp]",
+  "title": "[ユーザーリクエストから抽出したタイトル]",
+  "createdAt": "[ISO 8601形式]",
+  "createdBy": "agent_generated",
+  "sections": {
+    "header": [
+      {
+        "id": "section_header_1",
+        "type": "Default",
+        "component": "MainHeader",
+        "contents": [
+          {
+            "source": "TEXT",
+            "component": "MainHeader",
+            "value": "[タイトル]",
+            "props": {}
+          }
+        ]
+      }
+    ],
+    "main": [
+      // KPIカード例
+      {
+        "id": "section_main_1",
+        "type": "Default",
+        "component": "Card",
+        "title": "売上サマリー",
+        "description": "当月の主要指標",
+        "contents": [
+          {
+            "source": "S3",
+            "component": "Card",
+            "value": "[s3_path]",
+            "props": {
+              "variant": "default",
+              "metric": {
+                "label": "総売上",
+                "value": "auto_calculate",
+                "format": "currency",
+                "aggregation": "sum",
+                "field": "amount"
+              }
+            }
+          }
+        ]
+      },
+      // DataTable例
+      {
+        "id": "section_main_2",
+        "type": "Default",
+        "component": "DataTable",
+        "title": "売上明細",
+        "description": "全取引データ",
+        "contents": [
+          {
+            "source": "S3",
+            "component": "DataTable",
+            "value": "[s3_path]",
+            "props": {
+              "headers": "auto_detect",
+              "enableSorting": true,
+              "enableFiltering": true,
+              "enablePagination": true,
+              "pageSize": 20
+            }
+          }
+        ]
+      },
+      // DataTableを参照するグラフ例
+      {
+        "id": "section_main_3",
+        "type": "Default",
+        "component": "BarChart",
+        "title": "製品別売上",
+        "description": "売上の内訳",
+        "contents": [
+          {
+            "source": "REF",
+            "component": "BarChart",
+            "value": "ref:section_main_2",
+            "props": {
+              "dataKey": "amount",
+              "categoryKey": "product",
+              "fill": "#3b82f6",
+              "layout": "horizontal",
+              "showGrid": true,
+              "showTooltip": true,
+              "aggregation": {
+                "enabled": true,
+                "method": "sum",
+                "groupBy": "product"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+## エラーハンドリング
+- S3パスが提供されない場合：エラーJSON返却
+- 不明確なリクエスト：汎用レイアウト（Card + DataTable + BarChart）を提案
+- データ形式が不明：auto_detectを使用してランタイムで解決
+
+## 実装時の注意事項
+1. **auto_detect**や**auto_calculate**は実装側で解決される想定
+2. S3データはCSV形式を前提とし、最初の行がヘッダー
+3. グラフのaggregation設定は、REF使用時にフロントエンドで処理
+4. mainセクションは最大10個まで
+5. 各コンポーネントのpropsは必要最小限に留め、デフォルト値を活用
+
+
+
+コンポーネントごとに、何が必要か、対応表作って。
+
+編集
+
+コンポーネントごとの必要事項を整理して対応表を作成する
+3s
+
+
+
+各コンポーネントの必要な要素と設定の対応表を作成します：
+
+コンポーネント対応表
+1. MainHeader
+項目	必須	説明	例
+source	✓	TEXT固定	"TEXT"
+value	✓	タイトルテキスト	"月次売上レポート"
+props	-	追加プロパティなし	{}
+2. SubHeader
+項目	必須	説明	例
+source	✓	TEXT固定	"TEXT"
+value	✓	サブタイトルテキスト	"2024年10月度"
+props	-	追加プロパティなし	{}
+3. DataTable
+項目	必須	説明	例
+source	✓	S3/API/TEXT	"S3"
+value	✓	データソースパス	"s3://bucket/sales.csv"
+props.headers	○	カラム定義	[{"key": "date", "label": "日付"}]
+props.enableSorting	-	ソート機能	true
+props.enableFiltering	-	フィルタ機能	true
+props.pageSize	-	ページサイズ	10
+4. BarChart
+項目	必須	説明	例
+source	✓	S3/API/REF	"REF"
+value	✓	データソース	"ref:section_main_1"
+props.labels	✓	凡例定義	[{"key": "sales", "label": "売上", "color": "#3b82f6"}]
+props.dataKey	○	X軸のキー	"month"
+props.layout	-	縦/横	"vertical"
+props.stacked	-	積み上げ	false
+5. LineChart
+項目	必須	説明	例
+source	✓	S3/API/REF	"S3"
+value	✓	データソース	"s3://bucket/trends.csv"
+props.labels	✓	線の定義	[{"key": "revenue", "label": "収益", "color": "#10b981"}]
+props.dataKey	○	X軸のキー	"date"
+props.strokeWidth	-	線の太さ	2
+props.dot	-	ドット表示	true
+6. PieChart
+項目	必須	説明	例
+source	✓	S3/API/REF	"API"
+value	✓	データソース	"/api/category-ratio"
+props.labels	✓	セクター定義	[{"key": "categoryA", "label": "カテゴリA", "color": "#f59e0b"}]
+props.dataKey	○	値のキー	"value"
+props.nameKey	○	名前のキー	"category"
+props.innerRadius	-	ドーナツ型	0
+7. Card
+項目	必須	説明	例
+source	✓	TEXT/API/REF	"API"
+value	✓	データ/テキスト	"/api/monthly-total"
+props.key	○	データキー	"total"
+props.label	○	ラベル	"今月の売上"
+props.format	-	表示形式	"currency"
+props.trend	-	増減表示	true
+8. TextField
+項目	必須	説明	例
+source	✓	TEXT固定	"TEXT"
+value	✓	テキスト内容	"レポートの説明文..."
+props	-	追加プロパティなし	{}
+9. MarkdownField
+項目	必須	説明	例
+source	✓	TEXT/S3	"TEXT"
+value	✓	Markdown内容	"## 概要\n- ポイント1..."
+props	-	追加プロパティなし	{}
+データソース別の使い分け
+TEXT
+静的なテキスト表示
+MainHeader, SubHeader, TextField, MarkdownField で主に使用
+S3
+CSVやJSONファイルからのデータ読み込み
+DataTable, Charts系で使用
+大量データの保存先
+API
+リアルタイムデータの取得
+集計済みデータの取得
+Card（KPI）で多用
+REF
+既存セクションのデータを参照
+DataTableのデータをChartで可視化する際に使用
+ref:section_id 形式で指定
+セクション共通プロパティ
+プロパティ	必須	説明
+id	✓	セクションの一意識別子
+type	✓	Default/Custom
+component	✓	使用するコンポーネント名
+title	✓	セクションタイトル
+description	-	セクションの説明
+contents	✓	コンテンツ配列
+この対応表を使用することで、各コンポーネントに必要なプロパティを正確に設定できます。
+
+
+
+
+再試行
+コンポーネント対応表まず全部マージして。その後、個別の
+
+編集
+
+
+
+Merged components comprehensively to prepare detailed overview.
+2s
+
+
+統合コンポーネント対応表
+コンポーネント	source	value	必須Props	オプションProps	用途
+MainHeader	TEXT	タイトルテキスト	なし	なし	レポートメインタイトル
+SubHeader	TEXT	サブタイトルテキスト	なし	なし	レポートサブタイトル
+DataTable	S3/API/TEXT	データソースパス	headers	enableSorting, enableFiltering, pageSize	データ一覧表示
+BarChart	S3/API/REF	データソース/参照	labels	dataKey, layout, stacked	カテゴリ別比較
+LineChart	S3/API/REF	データソース/参照	labels	dataKey, strokeWidth, dot	時系列・トレンド
+PieChart	S3/API/REF	データソース/参照	labels	dataKey, nameKey, innerRadius	構成比・割合
+Card	TEXT/API/REF	データ/テキスト	key, label	format, trend	KPI・重要指標
+TextField	TEXT	テキスト内容	なし	なし	説明文・注釈
+MarkdownField	TEXT/S3	Markdown内容	なし	なし	書式付きテキスト
+Props詳細仕様
+共通Props構造
+json
+{
+  "source": "enum[TEXT, S3, API, REF]",
+  "component": "string",
+  "value": "string",
+  "props": {}
+}
+labels配列の構造（Chart系共通）
+json
+{
+  "labels": [
+    {
+      "key": "string",    // データのキー名
+      "label": "string",  // 表示名
+      "color": "string"   // カラーコード (#3b82f6)
+    }
+  ]
+}
+headers配列の構造（DataTable用）
+json
+{
+  "headers": [
+    {
+      "key": "string",    // カラムのキー名
+      "label": "string"   // カラムの表示名
+    }
+  ]
+}
+個別の詳細について、どの部分を詳しく見たいですか？
+
+
+
+
+再試行
+LineChart 、PieChartは一旦なしでOK。で、Cardは、
+<Card> <CardHeader> <CardTitle>カードタイトル</CardTitle> <CardDescription>カードの説明</CardDescription> </CardHeader> <CardContent> <p>カードコンテンツ</p> </CardContent> <CardFooter> <p>カードフッター</p> </CardFooter></Card>
+
+だと思うよ。https://www.shadcn.net/ja/docs/components/cardを見る限り。つまりタイトル、説明、コンテンツ、フッタがあれば十分。
+DataTables、BarChartも公式Docみて、何が必要か調査。
+
+編集
+
+ユーザーが指摘している通り、Cardコンポーネントの構造を見直す必要がある。また、DataTableとBarChartについても公式ドキュメントを確認して正確な仕様を調査する必要がある。
+3s
+
+
+
+
+
+Shadcn UIの公式ドキュメントを確認して、各コンポーネントの正確な仕様を調査します。
+
+favicon
+
+https://www.shadcn.net/ja/docs/components/cardの取得に失敗しました
+
+URLを直接fetchできないので、web_searchで公式ドキュメントを検索してみる。
+1s
+
+
+
+shadcn ui data table official documentation structure
+10件の結果
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+DataTableについての情報を得られた。次にBarChartの仕様を調査する必要がある。
+1s
+
+
+
+shadcn ui bar chart recharts props documentation
+10件の結果
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Analyzed component structures for Card, DataTable, and BarChart.
+7s
+
+
+
+調査結果に基づいて、正確なコンポーネント対応表を作成しました：
+
+統合コンポーネント対応表（更新版）
+コンポーネント	source	value	必須Props	オプションProps	用途
+MainHeader	TEXT	タイトルテキスト	なし	なし	レポートメインタイトル
+SubHeader	TEXT	サブタイトルテキスト	なし	なし	レポートサブタイトル
+DataTable	S3/API	データソースパス	columns, data	enableSorting, enableFiltering, pageSize	データ一覧表示
+BarChart	S3/API/REF	データソース/参照	data, chartConfig, bars	layout, stacked, XAxis設定	カテゴリ別比較
+Card	TEXT/API/REF	データ/テキスト	title	description, content, footer	KPI・重要指標
+TextField	TEXT	テキスト内容	なし	なし	説明文・注釈
+MarkdownField	TEXT/S3	Markdown内容	なし	なし	書式付きテキスト
+詳細Props仕様
+1. Card（更新版）
+json
+{
+  "source": "TEXT/API/REF",
+  "component": "Card",
+  "value": "データソース or テキスト",
+  "props": {
+    "title": "カードタイトル",          // 必須
+    "description": "カードの説明",      // オプション
+    "content": "カードコンテンツ",      // オプション
+    "footer": "カードフッター"          // オプション
+  }
+}
+2. DataTable（TanStack Table準拠）
+json
+{
+  "source": "S3/API",
+  "component": "DataTable",
+  "value": "s3://bucket/data.csv",
+  "props": {
+    "columns": [                        // 必須（通常は自動検出）
+      {
+        "accessorKey": "date",
+        "header": "日付"
+      },
+      {
+        "accessorKey": "amount",
+        "header": "金額"
+      }
+    ],
+    "data": "auto_detect",              // 必須（S3から自動取得）
+    "enableSorting": true,              // オプション
+    "enableFiltering": true,            // オプション
+    "pageSize": 10                      // オプション
+  }
+}
+3. BarChart（Recharts準拠）
+json
+{
+  "source": "S3/API/REF",
+  "component": "BarChart",
+  "value": "ref:section_main_1",
+  "props": {
+    "data": "auto_detect",              // 必須（参照元から自動取得）
+    "chartConfig": {                    // 必須
+      "desktop": {
+        "label": "デスクトップ",
+        "color": "#2563eb"
+      },
+      "mobile": {
+        "label": "モバイル",
+        "color": "#60a5fa"
+      }
+    },
+    "bars": [                           // 必須
+      {
+        "dataKey": "desktop",
+        "fill": "var(--color-desktop)",
+        "radius": 4
+      },
+      {
+        "dataKey": "mobile",
+        "fill": "var(--color-mobile)",
+        "radius": 4
+      }
+    ],
+    "XAxis": {                          // オプション
+      "dataKey": "month"
+    },
+    "layout": "vertical",               // オプション
+    "stacked": false                    // オプション
+  }
+}
+データソース使用ルール
+S3データの流れ
+DataTable → S3からデータを直接読み込み
+BarChart → DataTableを参照（REF）またはS3直接読み込み
+Card → 集計済みデータはAPI、テキストはTEXT
+REF（参照）の使い方
+json
+{
+  "source": "REF",
+  "value": "ref:section_main_1",  // DataTableのsection IDを参照
+  "props": {
+    // DataTableのデータを自動的に使用
+  }
+}
+自動検出機能
+"auto_detect": S3データから自動的にカラムやデータ構造を検出
+"auto_calculate": 集計値を自動計算（Card用）
+これで実装可能な正確な仕様になりました。
+
+
+
+
+再試行
+S3/API/REFは、S3統一しようか。他のコンポーネントに依存というよりか、データ重複しても良いので、JsonをS3に置くべきだと思う。
+S3/APIもS3に統一
+TEXT/API/REFはText二統一。
+TEXT/S3はTextにとういつ
+
+編集
+
+Strategized data source unification across S3 and TEXT.
+3s
+
+
+
+なるほど、データソースをS3とTEXTの2つに統一してシンプルにしますね。これにより実装が簡潔になります。
+
+統合コンポーネント対応表（シンプル版）
+コンポーネント	source	value	必須Props	オプションProps	用途
+MainHeader	TEXT	タイトルテキスト	なし	なし	レポートメインタイトル
+SubHeader	TEXT	サブタイトルテキスト	なし	なし	レポートサブタイトル
+DataTable	S3	S3パス	columns, data	enableSorting, enableFiltering, pageSize	データ一覧表示
+BarChart	S3	S3パス	data, chartConfig, bars	layout, stacked, XAxis設定	カテゴリ別比較
+Card	TEXT	テキスト内容	title	description, content, footer	KPI・重要指標
+TextField	TEXT	テキスト内容	なし	なし	説明文・注釈
+MarkdownField	TEXT	Markdown内容	なし	なし	書式付きテキスト
+データソース仕様
+S3（データ系コンポーネント用）
+用途: DataTable、BarChart などのデータ表示
+形式: JSON形式でS3に保存
+例: "s3://bucket/sales-data.json"
+TEXT（テキスト系コンポーネント用）
+用途: タイトル、説明文、Card表示内容
+形式: 直接文字列を指定
+例: "2024年10月売上レポート"
+更新後のJSON例
+json
+{
+  "reportId": "report_1234567890",
+  "title": "月次売上レポート",
+  "createdAt": "2024-01-15T10:00:00Z",
+  "createdBy": "agent_generated",
+  "sections": {
+    "header": [
+      {
+        "id": "section_header_1",
+        "type": "Default",
+        "component": "MainHeader",
+        "contents": [
+          {
+            "source": "TEXT",
+            "component": "MainHeader",
+            "value": "月次売上レポート",
+            "props": {}
+          }
+        ]
+      }
+    ],
+    "main": [
+      {
+        "id": "section_main_1",
+        "type": "Default",
+        "component": "Card",
+        "title": "今月の売上",
+        "description": "前月比較",
+        "contents": [
+          {
+            "source": "TEXT",
+            "component": "Card",
+            "value": "¥12,500,000",
+            "props": {
+              "title": "今月の売上",
+              "description": "前月比 +15%",
+              "footer": "2024年10月"
+            }
+          }
+        ]
+      },
+      {
+        "id": "section_main_2",
+        "type": "Default",
+        "component": "DataTable",
+        "title": "売上詳細データ",
+        "description": "日別の売上一覧",
+        "contents": [
+          {
+            "source": "S3",
+            "component": "DataTable",
+            "value": "s3://reports/sales-detail.json",
+            "props": {
+              "columns": "auto_detect",
+              "data": "auto_detect",
+              "enableSorting": true,
+              "enableFiltering": true,
+              "pageSize": 20
+            }
+          }
+        ]
+      },
+      {
+        "id": "section_main_3",
+        "type": "Default",
+        "component": "BarChart",
+        "title": "製品別売上",
+        "description": "各製品の売上高比較",
+        "contents": [
+          {
+            "source": "S3",
+            "component": "BarChart",
+            "value": "s3://reports/product-sales.json",
+            "props": {
+              "data": "auto_detect",
+              "chartConfig": {
+                "productA": {
+                  "label": "製品A",
+                  "color": "#3b82f6"
+                },
+                "productB": {
+                  "label": "製品B",
+                  "color": "#10b981"
+                }
+              },
+              "bars": "auto_detect"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+メリット
+シンプルな実装: データソースが2種類のみ
+独立性: 各コンポーネントが他に依存しない
+管理の容易さ: S3のJSONファイルを更新するだけでデータ更新可能
+一貫性: データ形式が統一される
+この構成により、実装がより簡潔になり、保守性も向上します。
+
+
+1. S3データの形式
+    - CSVファイルですか？JSONファイルですか？Json
+    - ヘッダー行の有無は？あり。
+    - 複数ファイルの場合の扱いは？S3にJson複数ある前提。
+  2. コンポーネントのカスタマイズ
+    - {CustomComponent} の扱いはどうしますか？今はなし。
+    - カスタムコンポーネントの登録方法は？今はなし。
+  3. データ集計・加工
+    - S3データから自動的にグラフ用に集計する機能は必要ですか？必要。ただし、OpenAIAgentSdkのToolsで実装。
+    - auto_detectやauto_calculateの具体的な実装イメージは？これやっぱ機能として不要。
+  4. API sourceの詳細
+    - APIのメソッド（GET/POST）やパラメータの指定方法は？APIは機能として不要。
+    - 認証情報の扱いは？不要。
+  5. 実装環境
+    - OpenAI Agents SDKのどのバージョンを使用予定ですか？最新。
+    - フロントエンドはNext.js + Shadcn UIですか？そうだけど、まずはユーザーリクエスト受け取って、Json返却さえしてくれたらOK。
+  6. エラーハンドリング
+    - S3アクセスエラーやデータ形式エラーの場合の動作は？よしなにやって。
+
+確かに **“最低限どの列を X 軸にして、どれを Y として描くか”** は指定できた方が混乱がありません。
+外側の `title`／`description` はすでにセクション単位で持っているので、BarChart の **必須 Props** を下記 2 つにだけ絞る形はいかがでしょう？
+
+| Prop      | 型                   | 説明                     | 例                                 |
+| --------- | ------------------- | ---------------------- | --------------------------------- |
+| `xField`  | string              | X 軸に使うキー（1 つ）          | `"date"`                          |
+| `yFields` | string \| string\[] | 棒グラフにする数値キー（1 つ or 配列） | `"sales"` / `["sales", "profit"]` |
+
+* **title は外側で一元管理**：セクションに `title` があるので、チャート内部では不要。
+* **色やスタイルは自動**：`yFields` が複数ならテーマ側で順番に色を割り当て。
+* **デフォルト動作**：もし `xField` / `yFields` が省かれていたら、最初の文字列列を X、数値列をすべて Y として自動描画。
+
+### コンポーネント定義（最小 Props 版）
+
+| コンポーネント      | source | value | **必須Props**         | オプションProps | 用途     |
+| ------------ | ------ | ----- | ------------------- | ---------- | ------ |
+| **BarChart** | S3     | S3 パス | `xField`, `yFields` | ―          | カテゴリ比較 |
+
+```jsonc
+{
+  "id": "section_main_3",
+  "type": "Default",
+  "component": "BarChart",
+  "title": "製品別売上",
+  "description": "カテゴリ比較",
+  "contents": [
+    {
+      "source": "S3",
+      "component": "BarChart",
+      "value": "s3://reports/product-sales.json",
+      "props": {
+        "xField": "product",
+        "yFields": ["sales"]
+      }
+    }
+  ]
+}
+```
+
+この設計なら **「必須だが 2 項目だけ」** なので実装も簡潔。
+DataTable は依然として Props なしで OK です。もしテーブル側で列の表示順を強制したい場合だけ `visibleColumns` などを追加する、という運用を推奨します。
+
+
+### 統合コンポーネント対応表（再改訂版 v2）
+
+| コンポーネント           | source | value     | **必須 Props**        | オプション Props                        | 用途               |
+| ----------------- | ------ | --------- | ------------------- | ---------------------------------- | ---------------- |
+| **MainHeader**    | TEXT   | タイトル文字列   | ―                   | ―                                  | レポートのメインタイトル     |
+| **SubHeader**     | TEXT   | サブタイトル文字列 | ―                   | ―                                  | レポートのサブタイトル      |
+| **Card**          | TEXT   | テキスト      | `title`             | `description`, `content`, `footer` | KPI や指標の強調表示     |
+| **TextField**     | TEXT   | テキスト      | ―                   | ―                                  | 説明文・注釈           |
+| **MarkdownField** | TEXT   | Markdown  | ―                   | ―                                  | 書式付きテキスト         |
+| **DataTable**     | S3     | S3 パス     | ―                   | ―                                  | JSON を自動解釈して一覧表示 |
+| **BarChart**      | S3     | S3 パス     | `xField`, `yFields` | ―                                  | 棒グラフ（カテゴリ比較）     |
+
+#### BarChart の必須 Props 説明
+
+| Prop      | 型                   | 例                                 | 意味          |
+| --------- | ------------------- | --------------------------------- | ----------- |
+| `xField`  | string              | `"product"`                       | X 軸に使うキー    |
+| `yFields` | string \| string\[] | `"sales"` / `["sales", "profit"]` | 棒グラフにする数値キー |
+
+> *デフォルト動作*
+>
+> * `xField`・`yFields` が未指定の場合、最初の文字列列を X、数値列すべてを Y として自動描画。
+> * 色や軸スタイルはテーマ側で自動割り当て。
+
+DataTable と BarChart を極力シンプルにしつつ、必要最低限の柔軟性は Props で確保しています。
+
+
+
+
+## JSON フォーマット（新版）
+
+```jsonc
+{
+  "reportId": "string",          // 必須・一意
+  "title": "string",             // 必須・レポート名
+  "createdAt": "timestamp",      // 必須
+  "createdBy": "uuid",           // 必須（例：Cognito ID）
+  "sections": {
+    "header": [
+      {
+        "id": "string",          // 必須・一意
+        "type": "string",        // 必須（Default / Custom など）
+        "component": "string",   // 必須（MainHeader / SubHeader など）
+        "contents": [
+          {
+            "source": "enum[TEXT, S3]",   // 必須
+            "component": "string",        // 必須（MainHeader など）
+            "value": "string",            // 必須
+            "props": {                    // 任意：必要な場合のみ
+              "key": "string",
+              "label": "string"
+            }
+          }
+        ]
+      }
+    ],
+    "main": [
+      {
+        "id": "string",          // 必須・一意
+        "type": "string",        // 必須
+        "component": "string",   // 必須（Card / DataTable / BarChart …）
+        "title": "string",       // 必須
+        "description": "string", // 任意
+        "contents": [
+          {
+            "source": "enum[TEXT, S3]",                     // 必須
+            "component": "enum[BarChart, DataTable, Card, TextField, MarkdownField, MainHeader, SubHeader]",  // 必須
+            "value": "string",                              // 必須（TEXT → 文字列、S3 → S3 パス）
+            "props": {                                      // 任意：各コンポーネントの仕様を参照
+              // DataTable  : なし
+              // BarChart   : { "xField": "string", "yFields": "string | string[]" }
+              // Card       : { "title": "string", "description": "string", "content": "string", "footer": "string" }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 各パラメータの説明
+
+| 名前                          | 説明           | 制約    | 備考                      |
+| --------------------------- | ------------ | ----- | ----------------------- |
+| **reportId**                | レポート ID      | 必須・一意 |                         |
+| **title**                   | レポート名        | 必須    |                         |
+| **createdAt**               | 作成日時         | 必須    | ISO-8601 推奨             |
+| **createdBy**               | 作成者 ID       | 必須    | Cognito など              |
+| **sections**                | セクション集合      | 必須    | インデックス順に上から描画           |
+|   header                    | ヘッダー用セクション   | 任意    |                         |
+|   main                      | メインコンテンツ     | 必須    | 例：上限 20 セクション 推奨        |
+| **sections.\*.id**          | セクション ID     | 必須・一意 |                         |
+| **sections.\*.type**        | セクション種別      | 必須    | `Default` / `Custom` など |
+| **sections.\*.component**   | ラッパー用コンポーネント | 必須    | 例：`DefaultSection`      |
+| **sections.\*.title**       | セクションタイトル    | 必須    |                         |
+| **sections.\*.description** | セクション概要      | 任意    |                         |
+| **sections.\*.contents**    | コンテンツ配列      | 必須    | インデックス順に描画              |
+|   contents.source           | データソース       | 必須    | TEXT / S3               |
+|   contents.component        | コンテンツコンポーネント | 必須    | 下表参照                    |
+|   contents.value            | データ本体        | 必須    | TEXT → 文字列 / S3 → パス    |
+|   contents.props            | プロパティ        | 任意    | コンポーネントごと               |
+
+---
+
+## コンポーネント一覧（最新版）
+
+| コンポーネント           | 用途                | **必須 Props**        | オプション Props                        |
+| ----------------- | ----------------- | ------------------- | ---------------------------------- |
+| **MainHeader**    | メインタイトル表示         | ―                   | ―                                  |
+| **SubHeader**     | サブタイトル表示          | ―                   | ―                                  |
+| **Card**          | KPI / 指標カード       | `title`             | `description`, `content`, `footer` |
+| **TextField**     | 文章・注釈             | ―                   | ―                                  |
+| **MarkdownField** | Markdown テキスト     | ―                   | ―                                  |
+| **DataTable**     | テーブル表示（JSON 自動解釈） | ―                   | ―                                  |
+| **BarChart**      | 棒グラフ              | `xField`, `yFields` | ―                                  |
+
+> **BarChart Props 詳細**
+>
+> * `xField` : X 軸に使うキー（文字列列）
+> * `yFields` : 棒にする数値キー（単一または配列）
+
+---
+
+## コンテンツソース一覧
+
+| ソース      | 役割                  | 備考         |
+| -------- | ------------------- | ---------- |
+| **TEXT** | 文字列をそのまま描画          | 小見出し・説明文など |
+| **S3**   | S3 に保存した JSON などを取得 | テーブル・グラフ用  |
+
+> **廃止**: 旧 API ソースは削除。外部 API を使う場合でも、ETL 後に S3 に置いて利用する方針。
