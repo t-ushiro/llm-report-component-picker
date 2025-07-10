@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
 from typing import List, Optional
 import os
-from report_generator_mock import ReportGenerator
+from report_generator_mock import MockReportGenerator as ReportGenerator
 
 # Secrets Managerからの設定読み込み（オプショナル）
 if os.getenv("USE_SECRETS_MANAGER", "false").lower() == "true":
