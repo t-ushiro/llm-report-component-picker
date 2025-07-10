@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
 from typing import List, Optional
 import os
-from report_generator_simple import ReportGenerator
+from report_generator_mock import ReportGenerator
 
 app = FastAPI()
 
