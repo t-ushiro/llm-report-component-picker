@@ -1,2 +1,22 @@
 version: 1.0
-runtime: docker
+runtime: python311
+build:
+  commands:
+    build:
+      - pip install --no-cache-dir -r requirements.txt
+run:
+  command: uvicorn main:app --host 0.0.0.0 --port 8000
+  network:
+    port: 8000
+    env: PORT
+  env:
+    - name: API_KEY
+      value: "your-secure-api-key"
+    - name: ALLOWED_S3_BUCKET
+      value: "kizukai-ds-tmp"
+    - name: AWS_DEFAULT_REGION
+      value: "ap-northeast-1"
+    - name: USE_SECRETS_MANAGER
+      value: "false"
+    - name: OPENAI_API_KEY_SECRET_ARN
+      value: "arn:aws:secretsmanager:ap-northeast-1:261581654417:secret:kizukai-openai-api-key-ILO0ZM"
