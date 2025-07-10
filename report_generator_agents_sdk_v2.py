@@ -292,8 +292,13 @@ if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
     
-    if not os.getenv("OPENAI_API_KEY"):
-        print("OPENAI_API_KEY環境変数が設定されていません")
+    # Secrets Managerまたは環境変数からAPIキーを取得
+    try:
+        from secrets_manager_utils import get_openai_api_key
+        api_key = get_openai_api_key()
+        os.environ["OPENAI_API_KEY"] = api_key
+    except Exception as e:
+        print(f"APIキーの取得に失敗しました: {str(e)}")
         exit(1)
     
     # サンプルリクエスト

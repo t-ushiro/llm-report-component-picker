@@ -77,3 +77,9 @@ report_generator_mock_debug.py
 
 # Old directory
 old/
+
+# IAM scripts
+update-apprunner-role.sh
+check-role-permissions.sh
+apprunner-iam-policy.json
+apprunner-complete-policy.json

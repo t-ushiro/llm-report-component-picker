@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY report_generator_mock.py .
 COPY report_generator_agents_sdk_v2.py .
 COPY report_generator_prompt.md .
+COPY secrets_manager_utils.py .
 COPY main.py .
 
 # 非rootユーザーで実行

@@ -15,3 +15,9 @@ run:
       value: "your-secure-api-key"
     - name: ALLOWED_S3_BUCKET
       value: "kizukai-ds-tmp"
+    - name: AWS_DEFAULT_REGION
+      value: "ap-northeast-1"
+    - name: USE_SECRETS_MANAGER
+      value: "true"
+    - name: OPENAI_API_KEY_SECRET_ARN
+      value: "arn:aws:secretsmanager:ap-northeast-1:261581654417:secret:kizukai-openai-api-key-ILO0ZM"

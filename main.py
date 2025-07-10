@@ -4,6 +4,16 @@ from typing import List, Optional
 import os
 from report_generator_mock import ReportGenerator
 
+# Secrets Managerからの設定読み込み
+try:
+    from secrets_manager_utils import get_openai_api_key
+    api_key = get_openai_api_key()
+    os.environ["OPENAI_API_KEY"] = api_key
+    print("OpenAI API key loaded successfully")
+except Exception as e:
+    print(f"Warning: Failed to load OpenAI API key from Secrets Manager: {str(e)}")
+    # モック実装の場合はAPIキーは不要なので警告のみ
+
 app = FastAPI()
 
 # リクエストモデル
