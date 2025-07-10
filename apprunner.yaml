@@ -2,11 +2,10 @@ version: 1.0
 runtime: docker
 build:
   commands:
-    build:
-      - echo "No build commands"
+    pre_build:
+      - echo "Installing dependencies..."
 run:
   runtime-version: latest
-  command: uvicorn main:app --host 0.0.0.0 --port 8000
   network:
     port: 8000
     env: PORT
@@ -18,6 +17,6 @@ run:
     - name: AWS_DEFAULT_REGION
       value: "ap-northeast-1"
     - name: USE_SECRETS_MANAGER
-      value: "true"
+      value: "false"
     - name: OPENAI_API_KEY_SECRET_ARN
       value: "arn:aws:secretsmanager:ap-northeast-1:261581654417:secret:kizukai-openai-api-key-ILO0ZM"

@@ -6,12 +6,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# アプリケーションコードのコピー
-COPY report_generator_mock.py .
-COPY report_generator_agents_sdk_v2.py .
-COPY report_generator_prompt.md .
-COPY secrets_manager_utils.py .
+# アプリケーションコードのコピー（モック実装のみ）
 COPY main.py .
+COPY report_generator_mock.py .
 
 # 非rootユーザーで実行
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
