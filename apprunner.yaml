@@ -5,7 +5,6 @@ build:
     pre_build:
       - echo "Installing dependencies..."
 run:
-  runtime-version: latest
   network:
     port: 8000
     env: PORT
